@@ -15,6 +15,8 @@ import {
   Copy,
   ArrowLeft,
 } from "lucide-react";
+import PrivacyPolicy from "./pages/privacyPolicy";
+import TermsAndService from "./pages/TermsAndService";
 
 const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
@@ -268,6 +270,9 @@ export default function App() {
   );
   if (publicMatch) return <PublicForm formId={publicMatch[1]} />;
 
+  const currentPath = window.location.pathname;
+  if (currentPath === "/privacy-policy") return <PrivacyPolicy />;
+  if (currentPath === "/terms-of-service") return <TermsAndService />;
   function onFileChange(nextFile) {
     const selectedFile = nextFile || null;
     setFile(selectedFile);
@@ -1124,6 +1129,11 @@ export default function App() {
         <footer>
           <span>AVIATIONLAB</span>
           <span>Study smart. Fly prepared.</span>
+
+          <div className="footer-links">
+            <a href="/privacy-policy">Privacy Policy</a>
+            <a href="/terms">Terms of Service</a>
+          </div>
         </footer>
       </main>
     </div>
