@@ -20,9 +20,10 @@ function parseJson(text) {
   throw new Error("The AI returned invalid JSON. Please retry.");
 }
 
+// Check if the error is a retryable Gemini error based on status codes and message patterns.
 function isRetryableGeminiError(error) {
   const status = Number(
-    error?.status || error?.statusCode || error?.response?.status
+    error?.status || error?.statusCode || error?.response?.status,
   );
   const message = String(error?.message || "");
 
@@ -37,6 +38,7 @@ function isRetryableGeminiError(error) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Generate content using the Gemini API with retry logic for transient errors.
 async function generateWithRetry(ai, model, prompt) {
   const maxAttempts = 4;
   let lastError;
@@ -57,7 +59,7 @@ async function generateWithRetry(ai, model, prompt) {
       const delayMs = 1000 * 2 ** (attempt - 1);
 
       console.warn(
-        `Temporary Gemini error (attempt ${attempt}/${maxAttempts}). Retrying in ${delayMs}ms.`
+        `Temporary Gemini error (attempt ${attempt}/${maxAttempts}). Retrying in ${delayMs}ms.`,
       );
 
       await sleep(delayMs);
@@ -67,15 +69,16 @@ async function generateWithRetry(ai, model, prompt) {
   throw lastError;
 }
 
+// Generate multiple-choice questions based on the provided chapter text, count, difficulty, and question type. Returns an array of generated questions.
 async function generateQuestions(
   chapter,
-  { count, difficulty, questionType = "mixed", priorQuestions = [] }
+  { count, difficulty, questionType = "mixed", priorQuestions = [] },
 ) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     const error = new Error(
-      "AI generation is not configured. Add GEMINI_API_KEY to server/.env."
+      "AI generation is not configured. Add GEMINI_API_KEY to server/.env.",
     );
     error.status = 503;
     throw error;
@@ -85,7 +88,7 @@ async function generateQuestions(
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const maxChars = Math.max(
     5000,
-    Number(process.env.MAX_AI_SOURCE_CHARS || 50000)
+    Number(process.env.MAX_AI_SOURCE_CHARS || 50000),
   );
 
   const text = String(chapter.text || "").slice(0, maxChars);
@@ -95,48 +98,9 @@ async function generateQuestions(
   const theoryCount = count - numericalCount;
 
   const typeInstructions = {
-    theory: `
-Generate THEORY questions only.
-Every question must test conceptual understanding, definitions,
-rules, regulations, procedures, or aviation principles.
-Do not include calculation-based questions.
-Set type to "theory" for every question.`,
-
-    numerical: `
-Generate NUMERICAL questions only.
-Questions must require calculations or mathematical reasoning.
-Include all necessary values and units in each question.
-Use only formulas and facts supported by the source excerpt.
-Do not invent missing values, formulas, or aviation facts.
-Set type to "numerical" for every question.
-If the excerpt does not support enough numerical questions,
-do not fabricate questions.`,
-
-    mixed: `
-Generate exactly ${numericalCount} NUMERICAL questions and
-${theoryCount} THEORY questions.
-
-This distribution is mandatory:
-- Numerical: ${numericalCount}
-- Theory: ${theoryCount}
-
-A NUMERICAL question must require the learner to calculate a
-value, solve a quantitative problem, or apply a formula using
-numerical inputs. Merely mentioning a number, speed, altitude,
-time, or distance does NOT make a question numerical.
-
-A THEORY question tests concepts, definitions, rules, regulations,
-procedures, or principles without requiring a calculation.
-
-Do not classify a theory question as numerical just because it
-contains numbers. Do not classify a calculation question as theory.
-
-Use type "numerical" for numerical questions and type "theory"
-for theory questions. Follow the requested distribution exactly.
-
-Use only formulas and facts supported by the excerpt. If the
-source cannot support the requested numerical questions, do not
-invent formulas, values, or aviation facts.`
+    theory: `Generate THEORY questions only. Every question must test conceptual understanding, definitions, rules, regulations, procedures, or aviation principles. Do not include calculation-based questions. Set type to "theory" for every question.`,
+    numerical: `Generate NUMERICAL questions only. Questions must require calculations or mathematical reasoning. Include all necessary values and units in each question. Use only formulas and facts supported by the source excerpt. Do not invent missing values, formulas, or aviation facts. Set type to "numerical" for every question. If the excerpt does not support enough numerical questions, do not fabricate questions.`,
+    mixed: `Generate exactly ${numericalCount} NUMERICAL questions and ${theoryCount} THEORY questions. This distribution is mandatory: - Numerical: ${numericalCount} - Theory: ${theoryCount} A NUMERICAL question must require the learner to calculate a value, solve a quantitative problem, or apply a formula using numerical inputs. Merely mentioning a number, speed, altitude, time, or distance does NOT make a question numerical. A THEORY question tests concepts, definitions, rules, regulations, procedures, or principles without requiring a calculation. Do not classify a theory question as numerical just because it contains numbers. Do not classify a calculation question as theory. Use type "numerical" for numerical questions and type "theory" for theory questions. Follow the requested distribution exactly. Use only formulas and facts supported by the excerpt. If the source cannot support the requested numerical questions, do not invent formulas, values, or aviation facts.`,
   };
 
   const typeInstruction =
@@ -148,60 +112,52 @@ invent formulas, values, or aviation facts.`
     .join("\n");
 
   const prompt = `
-You are an aviation examination question writer.
+    You are an aviation examination question writer. 
+    Create exactly ${count} multiple-choice questions. 
+    Difficulty: ${difficulty}. Requested question mode: ${questionType}. 
+    QUESTION-TYPE REQUIREMENTS: ${typeInstruction} 
+    QUALITY RULES:
+      1. Use only information supported by the supplied textbook excerpt.
+      2. Every question must have exactly four plausible answer options.
+      3. correctAnswer must be exactly "A", "B", "C", or "D".
+      4. Explain the correct answer using the supplied excerpt.
+      5. Numerical questions must be independently solvable from the
+        question and its supplied values.
+      6. Include appropriate units in numerical questions and answers
+        where applicable.
+      7. Do not repeat or lightly rephrase previously generated questions.
+      8. Cover different concepts and applications where possible.
+      9. Do not add unsupported aviation facts or formulas.
+      10. Return valid JSON only. Do not use Markdown code fences.
+    Return this JSON structure:
+      {
+        "questions": [
+          {
+            "question": "Question text",
+            "type": "numerical",
+            "options": [
+              "A. First option",
+              "B. Second option",
+              "C. Third option",
+              "D. Fourth option"
+            ],
+            "correctAnswer": "A",
+            "explanation": "Explanation supported by the excerpt",
+            "concept": "Concept being tested"
+          }
+        ]
+      }
 
-Create exactly ${count} multiple-choice questions.
-Difficulty: ${difficulty}.
-Requested question mode: ${questionType}.
+    The type field must be exactly "numerical" or "theory".
+    For mixed mode, verify the required numerical and theory counts
+    before returning the JSON.
 
-QUESTION-TYPE REQUIREMENTS:
-${typeInstruction}
+    Chapter: ${chapter.title}
 
-QUALITY RULES:
-1. Use only information supported by the supplied textbook excerpt.
-2. Every question must have exactly four plausible answer options.
-3. correctAnswer must be exactly "A", "B", "C", or "D".
-4. Explain the correct answer using the supplied excerpt.
-5. Numerical questions must be independently solvable from the
-   question and its supplied values.
-6. Include appropriate units in numerical questions and answers
-   where applicable.
-7. Do not repeat or lightly rephrase previously generated questions.
-8. Cover different concepts and applications where possible.
-9. Do not add unsupported aviation facts or formulas.
-10. Return valid JSON only. Do not use Markdown code fences.
+    Previously generated questions to avoid: ${excluded || "None yet."}
 
-Return this JSON structure:
-{
-  "questions": [
-    {
-      "question": "Question text",
-      "type": "numerical",
-      "options": [
-        "A. First option",
-        "B. Second option",
-        "C. Third option",
-        "D. Fourth option"
-      ],
-      "correctAnswer": "A",
-      "explanation": "Explanation supported by the excerpt",
-      "concept": "Concept being tested"
-    }
-  ]
-}
-
-The type field must be exactly "numerical" or "theory".
-For mixed mode, verify the required numerical and theory counts
-before returning the JSON.
-
-Chapter: ${chapter.title}
-
-Previously generated questions to avoid:
-${excluded || "None yet."}
-
-Source excerpt:
-${text}
-`;
+    Source excerpt: ${text}
+  `;
 
   let response;
 
@@ -211,7 +167,7 @@ ${text}
     const error = new Error(
       `Gemini request failed: ${
         cause.message || "unknown error"
-      }. Check model access, API key, network, and quota.`
+      }. Check model access, API key, network, and quota.`,
     );
 
     error.status = 502;
@@ -220,6 +176,7 @@ ${text}
 
   const parsed = parseJson(response.text);
 
+  // Validate that the parsed response contains a questions array. If not, throw an error with status 502.
   if (!Array.isArray(parsed.questions)) {
     throw new Error("The AI response did not include a questions array.");
   }
@@ -236,7 +193,7 @@ ${text}
       throw new Error(
         `The AI returned an invalid question or question type at position ${
           i + 1
-        }. Please retry.`
+        }. Please retry.`,
       );
     }
 
@@ -253,25 +210,20 @@ ${text}
 
   if (questions.length !== count) {
     throw new Error(
-      `The AI returned ${questions.length} questions instead of ${count}. Please retry.`
+      `The AI returned ${questions.length} questions instead of ${count}. Please retry.`,
     );
   }
 
   if (questionType === "mixed") {
     const actualNumerical = questions.filter(
-      (q) => q.type === "numerical"
+      (q) => q.type === "numerical",
     ).length;
 
-    const actualTheory = questions.filter(
-      (q) => q.type === "theory"
-    ).length;
+    const actualTheory = questions.filter((q) => q.type === "theory").length;
 
-    if (
-      actualNumerical !== numericalCount ||
-      actualTheory !== theoryCount
-    ) {
+    if (actualNumerical !== numericalCount || actualTheory !== theoryCount) {
       const error = new Error(
-        `The AI returned ${actualNumerical} numerical and ${actualTheory} theory questions. The requested distribution is ${numericalCount} numerical and ${theoryCount} theory. Please generate again.`
+        `The AI returned ${actualNumerical} numerical and ${actualTheory} theory questions. The requested distribution is ${numericalCount} numerical and ${theoryCount} theory. Please generate again.`,
       );
 
       error.status = 502;

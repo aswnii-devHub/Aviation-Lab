@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env*
 coverage/
 server/data/*.json
 server/data/google-oauth-token.json
