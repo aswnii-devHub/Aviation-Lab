@@ -43,7 +43,7 @@ function PublicForm({ formId }) {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    apiRequest(`${API}/forms/${formId}`)
+    apiRequest(`${API}/api/forms/${formId}`)
       .then(setForm)
       .catch((e) => setError(e.message));
   }, [formId]);
@@ -52,7 +52,7 @@ function PublicForm({ formId }) {
     setBusy(true);
     setError("");
     try {
-      const data = await apiRequest(`${API}/forms/${formId}/submit`, {
+      const data = await apiRequest(`${API}/api/forms/${formId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answers, name, email }),
@@ -245,13 +245,13 @@ export default function App() {
     0,
   );
   useEffect(() => {
-    apiRequest(`${API}/google/status`)
+    apiRequest(`${API}/api/google/status`)
       .then(setGoogleStatus)
       .catch(() => setGoogleStatus({ connected: false }));
     const params = new URLSearchParams(window.location.search);
     if (params.get("google") === "connected") {
       setNotice("Google account connected. You can now create Google Forms.");
-      apiRequest(`${API}/google/status`)
+      apiRequest(`${API}/api/google/status`)
         .then(setGoogleStatus)
         .catch(() => {});
       window.history.replaceState({}, "", window.location.pathname);
@@ -299,7 +299,7 @@ export default function App() {
     try {
       const body = new FormData();
       body.append("file", selectedFile);
-      const data = await apiRequest(`${API}/documents/analyze`, {
+      const data = await apiRequest(`${API}/api/documents/analyze`, {
         method: "POST",
         body,
       });
@@ -320,7 +320,7 @@ export default function App() {
   async function loadChapterText() {
     if (!analysis || !selectedChapter)
       throw new Error("Analyze the PDF and select a detected chapter first.");
-    return apiRequest(`${API}/documents/chapter-preview`, {
+    return apiRequest(`${API}/api/documents/chapter-preview`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -371,7 +371,7 @@ export default function App() {
         preview && String(preview.chapter) === String(selectedChapter.number)
           ? preview
           : await loadChapterText();
-      const data = await apiRequest(`${API}/questions/generate`, {
+      const data = await apiRequest(`${API}/api/questions/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -405,7 +405,7 @@ export default function App() {
     setError("");
     setNotice("");
     try {
-      const data = await apiRequest(`${API}/google/auth-url`);
+      const data = await apiRequest(`${API}/api/google/auth-url`);
       window.location.href = data.url;
     } catch (e) {
       setError(e.message);
@@ -426,7 +426,7 @@ export default function App() {
     setNotice("");
     setCreatedForm(null);
     try {
-      const data = await apiRequest(`${API}/google/forms/create`, {
+      const data = await apiRequest(`${API}/api/google/forms/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
