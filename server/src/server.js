@@ -58,6 +58,9 @@ app.use(
     allowedHeaders: [
       "Content-Type",
       "Authorization",
+      "Access-Control-Allow-Origin	",
+      "Access-Control-Allow-Headers",
+      "Access-Control-Allow-Methods",
     ],
   }),
 );
