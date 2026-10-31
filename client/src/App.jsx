@@ -15,7 +15,7 @@ import {
   Copy,
   ArrowLeft,
 } from "lucide-react";
-import PrivacyPolicy from "./pages/privacyPolicy";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndService from "./pages/TermsAndService";
 
 const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
