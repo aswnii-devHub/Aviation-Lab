@@ -247,42 +247,58 @@ export default function App() {
     0,
   );
 
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const googleResult = params.get("google");
-  if (googleResult === "connected") {
-    console.log("Google OAuth callback detected");
-    setActiveTab("form");
-    setNotice("Google account connected. You can now create Google Forms.");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleResult = params.get("google");
+    // Restore application state after returning from Google
+    if (googleResult === "connected" || googleResult === "error") {
+      const savedState = sessionStorage.getItem("aviationFormState");
+      if (savedState) {
+        try {
+          const parsedState = JSON.parse(savedState);
+          setQuestions(parsedState.questions || []);
+          setFormTitle(parsedState.formTitle || "");
+          setGeneratedSource(parsedState.generatedSource || "");
+
+          console.log("Previous form state restored");
+        } catch (error) {
+          console.error("Failed to restore form state:", error);
+        }
+        sessionStorage.removeItem("aviationFormState");
+      }
+    }
+
+    if (googleResult === "connected") {
+      console.log("Google OAuth callback detected");
+      setActiveTab("form");
+      setNotice("Google account connected. You can now create Google Forms.");
+      apiRequest(`${API}/api/google/status`)
+        .then((data) => {
+          console.log("Google status:", data);
+          setGoogleStatus(data);
+        })
+        .catch((error) => {
+          console.error("Google status check failed:", error);
+          setGoogleStatus({ connected: false });
+        });
+
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
+
+    if (googleResult === "error") {
+      setError(
+        `Google connection failed: ${
+          params.get("reason") || "Please try again."
+        }`,
+      );
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
     apiRequest(`${API}/api/google/status`)
-      .then((data) => {
-        console.log("Google status:", data);
-        setGoogleStatus(data);
-        setActiveTab("form");
-      })
-      .catch((error) => {
-        console.error("Google status check failed:", error);
-        setGoogleStatus({ connected: false });
-      });
-    sessionStorage.removeItem("aviationFormState");
-
-    window.history.replaceState({}, "", window.location.pathname);
-    return;
-  }
-
-  if (googleResult === "error") {
-    setError(
-      `Google connection failed: ${
-        params.get("reason") || "Please try again."
-      }`
-    );
-    window.history.replaceState({}, "", window.location.pathname);
-    return;
-  }
-  apiRequest(`${API}/api/google/status`)
-    .then(setGoogleStatus)
-    .catch(() => setGoogleStatus({ connected: false }));
-}, []);
+      .then(setGoogleStatus)
+      .catch(() => setGoogleStatus({ connected: false }));
+  }, []);
 
   const publicMatch = window.location.pathname.match(
     /^\/form\/([a-f0-9]+)\/?$/i,
@@ -430,6 +446,15 @@ useEffect(() => {
     setNotice("");
     try {
       const data = await apiRequest(`${API}/api/google/auth-url`);
+      // Preserve generated data before leaving the application
+      sessionStorage.setItem(
+        "aviationFormState",
+        JSON.stringify({
+          questions,
+          formTitle,
+          generatedSource,
+        })
+      );
       window.location.href = data.url;
     } catch (e) {
       setError(e.message);
