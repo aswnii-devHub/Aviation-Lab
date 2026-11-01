@@ -246,24 +246,43 @@ export default function App() {
     (sum, q, index) => sum + (answers[index] === q.correctAnswer ? 1 : 0),
     0,
   );
-  useEffect(() => {
+
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  const googleResult = params.get("google");
+  if (googleResult === "connected") {
+    console.log("Google OAuth callback detected");
+    setActiveTab("form");
+    setNotice("Google account connected. You can now create Google Forms.");
     apiRequest(`${API}/api/google/status`)
-      .then(setGoogleStatus)
-      .catch(() => setGoogleStatus({ connected: false }));
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("google") === "connected") {
-      setNotice("Google account connected. You can now create Google Forms.");
-      apiRequest(`${API}/api/google/status`)
-        .then(setGoogleStatus)
-        .catch(() => {});
-      window.history.replaceState({}, "", window.location.pathname);
-    } else if (params.get("google") === "error") {
-      setError(
-        `Google connection failed: ${params.get("reason") || "Please try again."}`,
-      );
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
+      .then((data) => {
+        console.log("Google status:", data);
+        setGoogleStatus(data);
+        setActiveTab("form");
+      })
+      .catch((error) => {
+        console.error("Google status check failed:", error);
+        setGoogleStatus({ connected: false });
+      });
+    sessionStorage.removeItem("aviationFormState");
+
+    window.history.replaceState({}, "", window.location.pathname);
+    return;
+  }
+
+  if (googleResult === "error") {
+    setError(
+      `Google connection failed: ${
+        params.get("reason") || "Please try again."
+      }`
+    );
+    window.history.replaceState({}, "", window.location.pathname);
+    return;
+  }
+  apiRequest(`${API}/api/google/status`)
+    .then(setGoogleStatus)
+    .catch(() => setGoogleStatus({ connected: false }));
+}, []);
 
   const publicMatch = window.location.pathname.match(
     /^\/form\/([a-f0-9]+)\/?$/i,
