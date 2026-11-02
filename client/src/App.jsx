@@ -14,9 +14,12 @@ import {
   Link2,
   Copy,
   ArrowLeft,
+  ChevronDown,
 } from "lucide-react";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsAndService from "./pages/TermsAndService";
+import { exportAviationPdfs } from "./utils/exportPdf";
+import { exportAviationWord } from "./utils/exportWord";
 
 const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
@@ -238,6 +241,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
   const selectedChapter = useMemo(
     () => analysis?.chapters?.find((c) => String(c.number) === chapterNumber),
     [analysis, chapterNumber],
@@ -453,7 +458,7 @@ export default function App() {
           questions,
           formTitle,
           generatedSource,
-        })
+        }),
       );
       window.location.href = data.url;
     } catch (e) {
@@ -517,6 +522,34 @@ export default function App() {
     }
   }
 
+  async function exportToWord() {
+    try {
+      await exportAviationWord({
+        chapter: generatedSource?.title || preview?.title || "Aviation",
+        questions,
+      });
+
+      setNotice("Word documents generated successfully.");
+      setError("");
+    } catch (error) {
+      setError(error.message);
+    }
+  }
+
+  function exportToPdf() {
+    try {
+      exportAviationPdfs({
+        chapter: generatedSource?.title || preview?.title || "Aviation",
+        questions,
+      });
+
+      setNotice("PDF documents generated successfully.");
+      setError("");
+    } catch (error) {
+      setError(error.message);
+    }
+  }
+
   function exportQuestions() {
     const blob = new Blob(
       [
@@ -542,7 +575,7 @@ export default function App() {
     link.click();
     URL.revokeObjectURL(url);
   }
-
+  
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -674,6 +707,9 @@ export default function App() {
                     </div>
                   </div>
                 )}
+                <p className="helper">
+                  PDF analysis runs automatically after upload. Preview is optional; generating questions will prepare the selected chapter text automatically.
+                </p>
                 {analysis?.warning && (
                   <p className="helper warning">{analysis.warning}</p>
                 )}
@@ -807,11 +843,6 @@ export default function App() {
                   )}{" "}
                   Generate questions
                 </button>
-                <p className="helper">
-                  PDF analysis runs automatically after upload. Preview is
-                  optional; generating questions will prepare the selected
-                  chapter text automatically.
-                </p>
               </section>
             </div>
 
@@ -870,12 +901,29 @@ export default function App() {
                       {difficulty} difficulty
                     </p>
                   </div>
-                  <button
-                    className="button button-secondary"
-                    onClick={exportQuestions}
-                  >
-                    <Download size={16} /> Export JSON
-                  </button>
+                  <div className="export-dropdown">
+                    <Download size={18} className="text-blue-600" />
+
+                    <select
+                      defaultValue=""
+                      onChange={(e) => {
+                        const format = e.target.value;
+
+                        if (format === "json") exportQuestions();
+                        if (format === "pdf") exportToPdf();
+                        if (format === "word") exportToWord();
+
+                        e.target.value = "";
+                      }}
+                      >
+                      <option value="" disabled>
+                        Export
+                      </option>
+                      <option value="json">Export JSON</option>
+                      <option value="pdf">Export PDF</option>
+                      <option value="word">Export Word</option>
+                    </select>
+                  </div>
                 </div>
                 {questions.map((q, i) => (
                   <article className="question" key={q.id || i}>
